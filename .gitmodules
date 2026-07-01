@@ -1,0 +1,15 @@
+[submodule "axi"]
+	path = axi
+	url = https://github.com/pulp-platform/axi
+[submodule "tvip-axi"]
+	path = tvip-axi
+	url = https://github.com/taichi-ishitani/tvip-axi
+[submodule "common_verification"]
+	path = common_verification
+	url = https://github.com/pulp-platform/common_verification.git
+[submodule "common_cells"]
+	path = common_cells
+	url = https://github.com/pulp-platform/common_cells.git
+[submodule "tech_cells_generic"]
+	path = tech_cells_generic
+	url = https://github.com/pulp-platform/tech_cells_generic.git

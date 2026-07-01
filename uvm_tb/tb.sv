@@ -180,13 +180,19 @@ module tb;
     .default_mst_port_i    ('0)
   );
 
-  initial begin
-    foreach (mst_vif[i]) begin
+  for (genvar i = 0; i < TbNumMasters; i++) begin : gen_mst_vif_cfg
+    initial begin
       uvm_config_db #(tvip_axi_vif)::set(null, "", $sformatf("mst_vif[%0d]", i), mst_vif[i]);
     end
-    foreach (slv_vif[i]) begin
+  end
+
+  for (genvar i = 0; i < TbNumSlaves; i++) begin : gen_slv_vif_cfg
+    initial begin
       uvm_config_db #(tvip_axi_vif)::set(null, "", $sformatf("slv_vif[%0d]", i), slv_vif[i]);
     end
+  end
+
+  initial begin
     run_test();
   end
 

@@ -46,22 +46,26 @@ class axi_xbar_uvm_master_sequence extends tvip_axi_master_sequence_base;
     tvip_axi_master_access_sequence rd_seq;
 
     wr_seq = tvip_axi_master_access_sequence::type_id::create("wr_seq");
-    `tue_do_on_with(wr_seq, p_sequencer, {
-      access_type == TVIP_AXI_WRITE_ACCESS;
-      id == tx_id;
-      address == addr;
-      burst_length == 2;
-      burst_size == 8;
-    })
+    wr_seq.access_type = TVIP_AXI_WRITE_ACCESS;
+    wr_seq.id = tx_id;
+    wr_seq.address = addr;
+    wr_seq.burst_length = 1;
+    wr_seq.burst_size = 8;
+    wr_seq.burst_type = TVIP_AXI_INCREMENTING_BURST;
+    wr_seq.data = new[1];
+    wr_seq.strobe = new[1];
+    wr_seq.data[0] = tvip_axi_data'(64'h0123_4567_89ab_cdef);
+    wr_seq.strobe[0] = tvip_axi_strobe'('1);
+    wr_seq.start(p_sequencer);
 
     rd_seq = tvip_axi_master_access_sequence::type_id::create("rd_seq");
-    `tue_do_on_with(rd_seq, p_sequencer, {
-      access_type == TVIP_AXI_READ_ACCESS;
-      id == tx_id;
-      address == addr;
-      burst_length == wr_seq.burst_length;
-      burst_size == wr_seq.burst_size;
-    })
+    rd_seq.access_type = TVIP_AXI_READ_ACCESS;
+    rd_seq.id = tx_id;
+    rd_seq.address = addr;
+    rd_seq.burst_length = wr_seq.burst_length;
+    rd_seq.burst_size = wr_seq.burst_size;
+    rd_seq.burst_type = TVIP_AXI_INCREMENTING_BURST;
+    rd_seq.start(p_sequencer);
 
     for (int i = 0; i < wr_seq.burst_length; i++) begin
       if (!compare_data(i, wr_seq.address, wr_seq.burst_size, wr_seq.strobe, wr_seq.data, rd_seq.data)) begin
@@ -89,25 +93,29 @@ class axi_xbar_uvm_master_sequence extends tvip_axi_master_sequence_base;
     err_id = tvip_axi_id'(8'hf0 + master_index);
 
     rd_seq = tvip_axi_master_access_sequence::type_id::create("rd_seq");
-    `tue_do_on_with(rd_seq, p_sequencer, {
-      access_type == TVIP_AXI_READ_ACCESS;
-      id == err_id;
-      address == UnmappedAddr;
-      burst_length == 1;
-      burst_size == 8;
-    })
+    rd_seq.access_type = TVIP_AXI_READ_ACCESS;
+    rd_seq.id = err_id;
+    rd_seq.address = UnmappedAddr;
+    rd_seq.burst_length = 1;
+    rd_seq.burst_size = 8;
+    rd_seq.burst_type = TVIP_AXI_INCREMENTING_BURST;
+    rd_seq.start(p_sequencer);
     if (rd_seq.response.size() != 1 || rd_seq.response[0] != TVIP_AXI_DECODE_ERROR) begin
       `uvm_error(get_type_name(), $sformatf("Expected DECERR read on master %0d", master_index))
     end
 
     wr_seq = tvip_axi_master_access_sequence::type_id::create("wr_seq");
-    `tue_do_on_with(wr_seq, p_sequencer, {
-      access_type == TVIP_AXI_WRITE_ACCESS;
-      id == err_id;
-      address == (UnmappedAddr + 32'h40);
-      burst_length == 1;
-      burst_size == 8;
-    })
+    wr_seq.access_type = TVIP_AXI_WRITE_ACCESS;
+    wr_seq.id = err_id;
+    wr_seq.address = (UnmappedAddr + 32'h40);
+    wr_seq.burst_length = 1;
+    wr_seq.burst_size = 8;
+    wr_seq.burst_type = TVIP_AXI_INCREMENTING_BURST;
+    wr_seq.data = new[1];
+    wr_seq.strobe = new[1];
+    wr_seq.data[0] = tvip_axi_data'(64'h55aa_55aa_55aa_55aa);
+    wr_seq.strobe[0] = tvip_axi_strobe'('1);
+    wr_seq.start(p_sequencer);
     if (wr_seq.response.size() != 1 || wr_seq.response[0] != TVIP_AXI_DECODE_ERROR) begin
       `uvm_error(get_type_name(), $sformatf("Expected DECERR write on master %0d", master_index))
     end
@@ -116,28 +124,39 @@ class axi_xbar_uvm_master_sequence extends tvip_axi_master_sequence_base;
   local task run_same_id_cross_target_stress();
     tvip_axi_master_access_sequence wr_seq_0;
     tvip_axi_master_access_sequence wr_seq_1;
-    tvip_axi_id same_id;
+    tvip_axi_id id_to_dst0;
+    tvip_axi_id id_to_dst1;
 
-    same_id = tvip_axi_id'(master_index + 1);
+    id_to_dst0 = tvip_axi_id'(master_index + 8);
+    id_to_dst1 = tvip_axi_id'(master_index + 12);
 
     wr_seq_0 = tvip_axi_master_access_sequence::type_id::create("wr_seq_0");
     wr_seq_1 = tvip_axi_master_access_sequence::type_id::create("wr_seq_1");
-    fork
-      `tue_do_on_with(wr_seq_0, p_sequencer, {
-        access_type == TVIP_AXI_WRITE_ACCESS;
-        id == same_id;
-        address == MappedBase[0] + (master_index * 32'h40);
-        burst_length == 2;
-        burst_size == 8;
-      })
-      `tue_do_on_with(wr_seq_1, p_sequencer, {
-        access_type == TVIP_AXI_WRITE_ACCESS;
-        id == same_id;
-        address == MappedBase[1] + (master_index * 32'h80);
-        burst_length == 2;
-        burst_size == 8;
-      })
-    join
+
+    wr_seq_0.access_type = TVIP_AXI_WRITE_ACCESS;
+    wr_seq_0.id = id_to_dst0;
+    wr_seq_0.address = MappedBase[0] + (master_index * 32'h40);
+    wr_seq_0.burst_length = 1;
+    wr_seq_0.burst_size = 8;
+    wr_seq_0.burst_type = TVIP_AXI_INCREMENTING_BURST;
+    wr_seq_0.data = new[1];
+    wr_seq_0.strobe = new[1];
+    wr_seq_0.data[0] = tvip_axi_data'(64'h1111_2222_3333_4444);
+    wr_seq_0.strobe[0] = tvip_axi_strobe'('1);
+
+    wr_seq_1.access_type = TVIP_AXI_WRITE_ACCESS;
+    wr_seq_1.id = id_to_dst1;
+    wr_seq_1.address = MappedBase[1] + (master_index * 32'h80);
+    wr_seq_1.burst_length = 1;
+    wr_seq_1.burst_size = 8;
+    wr_seq_1.burst_type = TVIP_AXI_INCREMENTING_BURST;
+    wr_seq_1.data = new[1];
+    wr_seq_1.strobe = new[1];
+    wr_seq_1.data[0] = tvip_axi_data'(64'haaaa_bbbb_cccc_dddd);
+    wr_seq_1.strobe[0] = tvip_axi_strobe'('1);
+
+    wr_seq_0.start(p_sequencer);
+    wr_seq_1.start(p_sequencer);
 
     foreach (wr_seq_0.response[i]) begin
       if (wr_seq_0.response[i] != TVIP_AXI_OKAY) begin

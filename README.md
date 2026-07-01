@@ -40,6 +40,29 @@ Useful options:
 - `-SkipCompile` to run simulation only with existing build artifacts.
 - `-Seed <N>` to control `-sv_seed` (default `1`).
 
+## Windows Waveform Entry (tb)
+
+Use the root-level waveform script to open Questa GUI and auto-add `tb` signals:
+
+```powershell
+Set-Location .
+.\scripts\open_wave_tb.ps1 -BenderExe "$env:USERPROFILE\.cargo\bin\bender.exe"
+```
+
+Useful options:
+
+- `-SkipCompile` to open GUI without recompiling.
+- `-RunTime "10 us"` to run a bounded duration instead of `-all`.
+- `-DoFile <path>` to execute a custom wave/config do file instead of default wave commands.
+- `-ViewPreviousWave` to open existing `axi/build/vsim.wlf` directly in viewer mode.
+
+If viewer mode shows `No Data`, regenerate the wave database with logging enabled:
+
+```powershell
+.\scripts\run_tb.ps1 -SkipCompile
+.\scripts\open_wave_tb.ps1 -SkipCompile -ViewPreviousWave
+```
+
 ## Regression Profiles
 
 Use the layered regression script for smoke/nightly execution:

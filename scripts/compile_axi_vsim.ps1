@@ -56,10 +56,18 @@ try {
     $compileTcl = Join-Path $buildDir "compile.tcl"
     $compileLog = Join-Path $buildDir "compile_vsim.log"
 
-    $tcl = & $resolvedBenderExe script vsim -t test -t rtl `
+    $tclLines = & $resolvedBenderExe script vsim -t test -t rtl `
         --vlog-arg="-svinputport=compat" `
         --vlog-arg="-override_timescale 1ns/1ps" `
-        --vlog-arg="-suppress 2583"
+        --vlog-arg="-suppress 2583" `
+        --vlog-arg="-suppress 13389"
+
+    $tcl = $tclLines -join [Environment]::NewLine
+    $axiDirUnix = $axiDir -replace '\\', '/'
+    $rootReplacement = 'set ROOT "{0}"' -f $axiDirUnix
+    $tcl = [regex]::Replace($tcl, 'set ROOT ".*?"', $rootReplacement)
+    $tcl = $tcl -replace '"\$ROOT\\', '"$ROOT/'
+    $tcl = [regex]::Replace($tcl, '\\(?!\r?\n)', '/')
 
     @(
         "if {[file exists work]} { vdel -lib work -all }",
@@ -69,13 +77,14 @@ try {
     Add-Content -Path $compileTcl -Value $tcl -Encoding ascii
     Add-Content -Path $compileTcl -Value "return 0" -Encoding ascii
 
-    $proc = Start-Process -FilePath $VsimExe `
-        -ArgumentList @("-c", "-do", "source compile.tcl; quit -f") `
-        -NoNewWindow -Wait -PassThru `
-        -RedirectStandardOutput $compileLog
+    $compileArgs = @(
+        "-c",
+        "-do", "source compile.tcl; quit -f"
+    )
 
-    if ($proc.ExitCode -ne 0) {
-        throw "vsim compile failed with exit code $($proc.ExitCode). See $compileLog"
+    & $VsimExe @compileArgs *> $compileLog
+    if ($LASTEXITCODE -ne 0) {
+        throw "vsim compile failed with exit code $LASTEXITCODE. See $compileLog"
     }
 
     $compileText = Get-Content -Path $compileLog -Raw
