@@ -298,6 +298,91 @@ class axi_xbar_uvm_master_sequence extends tvip_axi_master_sequence_base;
     check_all_responses(wr_seq, TVIP_AXI_OKAY, "WRITE");
   endtask
 
+  local task run_variable_burst_write_read_pair(
+    input tvip_axi_address addr,
+    input tvip_axi_id tx_id,
+    input int burst_length,
+    input int burst_size,
+    input tvip_axi_data base_data
+  );
+    tvip_axi_master_access_sequence wr_seq;
+    tvip_axi_master_access_sequence rd_seq;
+
+    wr_seq = tvip_axi_master_access_sequence::type_id::create("wr_seq_variable");
+    wr_seq.access_type = TVIP_AXI_WRITE_ACCESS;
+    wr_seq.id = tx_id;
+    wr_seq.address = addr;
+    wr_seq.protection = tvip_axi_protection'('0);
+    wr_seq.qos = tvip_axi_qos'('0);
+    wr_seq.burst_length = burst_length;
+    wr_seq.burst_size = burst_size;
+    wr_seq.burst_type = TVIP_AXI_INCREMENTING_BURST;
+    wr_seq.data = new[wr_seq.burst_length];
+    wr_seq.strobe = new[wr_seq.burst_length];
+    for (int i = 0; i < wr_seq.burst_length; i++) begin
+      wr_seq.data[i] = base_data + i + (master_index * 16);
+      wr_seq.strobe[i] = tvip_axi_strobe'('1);
+    end
+    wr_seq.start(p_sequencer);
+
+    rd_seq = tvip_axi_master_access_sequence::type_id::create("rd_seq_variable");
+    rd_seq.access_type = TVIP_AXI_READ_ACCESS;
+    rd_seq.id = tx_id;
+    rd_seq.address = addr;
+    rd_seq.protection = tvip_axi_protection'('0);
+    rd_seq.qos = tvip_axi_qos'('0);
+    rd_seq.burst_length = wr_seq.burst_length;
+    rd_seq.burst_size = wr_seq.burst_size;
+    rd_seq.burst_type = TVIP_AXI_INCREMENTING_BURST;
+    rd_seq.start(p_sequencer);
+
+    for (int i = 0; i < wr_seq.burst_length; i++) begin
+      if (!compare_data(i, wr_seq.address, wr_seq.burst_size, wr_seq.strobe, wr_seq.data, rd_seq.data)) begin
+        `uvm_error(
+          get_type_name(),
+          $sformatf(
+            "Variable-burst data mismatch on master %0d at beat %0d (len=%0d size=%0d)",
+            master_index,
+            i,
+            wr_seq.burst_length,
+            wr_seq.burst_size
+          )
+        )
+      end
+    end
+
+    check_all_responses(rd_seq, TVIP_AXI_OKAY, "READ");
+    check_all_responses(wr_seq, TVIP_AXI_OKAY, "WRITE");
+  endtask
+
+  local task run_burst_profile_sweep();
+    int burst_sizes[4];
+    int burst_lengths[4];
+    int case_idx;
+
+    burst_sizes = '{1, 2, 4, 8};
+    burst_lengths = '{1, 3, 6, 12};
+    case_idx = 0;
+
+    foreach (burst_sizes[s]) begin
+      foreach (burst_lengths[l]) begin
+        int dst_sel;
+        tvip_axi_address addr;
+
+        dst_sel = (case_idx % TbNumSlaves);
+        addr = MappedBase[dst_sel] + 32'h400 + (master_index * 32'h40) + (case_idx * 32'h40);
+        run_variable_burst_write_read_pair(
+          addr,
+          tvip_axi_id'((master_index + 1 + case_idx) % 16),
+          burst_lengths[l],
+          burst_sizes[s],
+          tvip_axi_data'(64'h0f0f_f0f0_55aa_aa55 + case_idx)
+        );
+        case_idx++;
+      end
+    end
+  endtask
+
   local task run_same_id_mixed_rw_cross_target_stress();
     tvip_axi_master_access_sequence wr_seq;
     tvip_axi_master_access_sequence rd_seq;
@@ -401,6 +486,28 @@ class axi_xbar_uvm_master_sequence extends tvip_axi_master_sequence_base;
     run_write_read_pair(MappedBase[1 - master_index] + 32'h20, tvip_axi_id'(master_index + 4));
     run_burst_partial_write_read_pair(MappedBase[master_index] + 32'h40, tvip_axi_id'(master_index + 6));
     run_narrow_burst_write_read_pair(MappedBase[master_index] + 32'h120, tvip_axi_id'(master_index + 8));
+    run_variable_burst_write_read_pair(
+      MappedBase[master_index] + 32'h300,
+      tvip_axi_id'(master_index + 5),
+      8,
+      1,
+      tvip_axi_data'(64'h3141_5926_5358_9793)
+    );
+    run_variable_burst_write_read_pair(
+      MappedBase[1 - master_index] + 32'h340,
+      tvip_axi_id'(master_index + 7),
+      8,
+      4,
+      tvip_axi_data'(64'h2718_2818_2845_9045)
+    );
+    run_variable_burst_write_read_pair(
+      MappedBase[master_index] + 32'h380,
+      tvip_axi_id'(master_index + 9),
+      16,
+      8,
+      tvip_axi_data'(64'h1618_0339_8874_9894)
+    );
+    run_burst_profile_sweep();
     run_concurrent_cross_target_burst_stress();
     run_same_id_cross_target_stress();
     run_same_id_mixed_rw_cross_target_stress();

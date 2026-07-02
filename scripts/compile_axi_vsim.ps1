@@ -59,6 +59,7 @@ try {
     $tclLines = & $resolvedBenderExe script vsim -t test -t rtl `
         --vlog-arg="-svinputport=compat" `
         --vlog-arg="-override_timescale 1ns/1ps" `
+        --vlog-arg="+cover" `
         --vlog-arg="-suppress 2583" `
         --vlog-arg="-suppress 13389"
 

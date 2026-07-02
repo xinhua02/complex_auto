@@ -27,9 +27,19 @@ class axi_xbar_uvm_scoreboard extends uvm_component;
     bit is_write
   );
     option.per_instance = 1;
-    cp_src: coverpoint src;
-    cp_dst: coverpoint dst;
-    cp_decerr: coverpoint decerr;
+    cp_src: coverpoint src {
+      bins src_bins[] = {[0:TbNumMasters-1]};
+      illegal_bins src_oob = default;
+    }
+    cp_dst: coverpoint dst {
+      bins mapped_dst[] = {[0:TbNumSlaves-1]};
+      bins decerr_dst = {TbNumSlaves};
+      illegal_bins dst_oob = default;
+    }
+    cp_decerr: coverpoint decerr {
+      bins no_decerr = {1'b0};
+      bins has_decerr = {1'b1};
+    }
     cp_burst_len: coverpoint burst_len {
       bins single = {1};
       bins short = {[2:4]};

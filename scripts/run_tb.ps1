@@ -40,15 +40,29 @@ if (-not (Test-Path $buildDir)) {
 Push-Location $buildDir
 try {
     $tempLogFile = Join-Path $buildDir ("vsim_tb_{0}.log" -f ([Guid]::NewGuid().ToString("N")))
+    $ucdbFile = Join-Path $buildDir ("coverage_seed_{0}.ucdb" -f $Seed)
+    $ucdbFileTcl = $ucdbFile -replace '\\', '/'
+    $doFile = Join-Path $buildDir ("run_{0}.do" -f ([Guid]::NewGuid().ToString("N")))
+    $doFileName = Split-Path -Leaf $doFile
     $runCmd = if ([string]::IsNullOrWhiteSpace($RunTime)) { "run -all" } else { "run $RunTime" }
+
+    # Create TCL do file with coverage save
+    @(
+        "onfinish stop",
+        "log -r /*",
+        $runCmd,
+        "coverage save -du tb {$ucdbFileTcl}",
+        "quit -f"
+    ) | Out-File -FilePath $doFile -Encoding ascii
 
     $vsimArgs = @(
         "-c",
+        "-coverage",
         "-sv_seed", "$Seed",
         "-wlf", $wlfFile,
         "tb",
         "+UVM_TESTNAME=$TestName",
-        "-do", "log -r /*; $runCmd; quit -f"
+        "-do", "do $doFileName"
     )
 
     & $VsimExe @vsimArgs *> $tempLogFile
@@ -111,6 +125,9 @@ try {
     Write-Host "Simulation completed successfully. Log: $reportedLog"
     Write-Host "Wave database updated: $wlfFile"
     Write-Host "Simulation run command: $runCmd"
+    if ((Test-Path $ucdbFile)) {
+        Write-Host "Coverage database: $ucdbFile"
+    }
 }
 finally {
     Pop-Location

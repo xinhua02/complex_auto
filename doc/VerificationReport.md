@@ -194,6 +194,38 @@ Artifacts:
 - `axi/build/regression_custom_20260702_113800.md`
 - `axi/build/regression_nightly_20260702_124204.md`
 
+### 4.10 Coverage closure update (60% target)
+
+Analysis summary:
+
+- Baseline sampled `cg_xbar` coverage in prior report: `35.28%`.
+- First scenario extension (additional variable burst traffic): sampled `cg_xbar` increased to `44.69%`.
+- Second scenario extension (burst-profile sweep): sampled `cg_xbar` increased to `50.63%`.
+- Root cause for low percentage persistence: `cp_src` and `cp_dst` were unconstrained integer coverpoints, creating an oversized implicit bin space and diluting effective percentage.
+
+Implemented closure actions:
+
+- Added reusable variable burst write/read task in `uvm_tb/axi_xbar_uvm_master_sequence.sv`.
+- Added burst profile sweep case set covering `burst_size={1,2,4,8}` and `burst_length={1,3,6,12}` across mapped destinations.
+- Constrained coverage bins in `uvm_tb/axi_xbar_uvm_scoreboard.sv`:
+  - `cp_src`: valid ingress indices only, out-of-range as illegal bins
+  - `cp_dst`: mapped destination bins plus explicit DECERR bucket
+  - `cp_decerr`: explicit `{0,1}` bins
+
+Validation:
+
+- Smoke regression rerun: 10/10 PASS.
+- Latest sampled `cg_xbar` coverage: `100.00%`.
+- Gate safety checks remain clean:
+  - route hits for all ingress->egress pairs present
+  - DECERR read/write observed for each ingress
+  - same-ID cross-destination checks exercised with zero violations
+  - `UVM_ERROR=0`, `UVM_FATAL=0`
+
+New artifact:
+
+- `axi/build/regression_smoke_20260702_145409.md`
+
 ## 5. Compliance and Structure Status
 
 Confirmed:
