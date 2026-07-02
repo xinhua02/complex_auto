@@ -14,6 +14,7 @@ This template defines practical coverage gates for smoke/nightly runs and a repo
 | DECERR write hit | Per-ingress DECERR write observed | 100% required | 100% required |
 | Same-ID cross-dst check | Per-ingress ordering check exercised | 100% required | 100% required |
 | Same-ID violation count | Ordering violations detected | 0 required | 0 required |
+| Burst profile hit (optional) | Burst length/size bins for read/write traffic exercised | >= 80% target | >= 95% target |
 | Regression pass rate | Seeds passed / total seeds | >= 95% | >= 98% |
 
 ## 2. Seed Policy
@@ -33,15 +34,16 @@ Coverage gate summary:
 - DECERR write hit: <value>% (gate: 100%)
 - Same-ID check hit: <value>% (gate: 100%)
 - Same-ID violations: <count> (gate: 0)
+- Burst profile hit (optional): <value>% (target: <value>%)
 - Regression pass rate: <value>% (gate: <value>%)
 ```
 
 ## 4. Runbook
 
 1. Run smoke:
-   - .\scripts\run_regression.ps1 -Profile smoke
+   - .\scripts\run_regression.ps1 -RunTier smoke
 2. Run nightly:
-   - .\scripts\run_regression.ps1 -Profile nightly
+   - .\scripts\run_regression.ps1 -RunTier nightly
 3. Archive generated markdown summary under axi/build/.
 4. Update doc/VerificationReport.md with gate status and exceptions.
 

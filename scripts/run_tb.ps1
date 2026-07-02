@@ -4,6 +4,11 @@ param(
     [int]$Seed = 1,
     [string]$TestName = "axi_xbar_uvm_test",
     [string]$RunTime = "20us",
+    [bool]$RequireUvmCompletion = $true,
+    [switch]$FailOnAnyUvmWarning,
+    [string[]]$WarningAsErrorPatterns = @(
+        "UVM_WARNING.*master_agent\[[01]\]\.driver\.read_driver.*UNEXPECTED_RESPONSE.*id 0000000[01]"
+    ),
     [switch]$SkipCompile
 )
 
@@ -34,6 +39,7 @@ if (-not (Test-Path $buildDir)) {
 
 Push-Location $buildDir
 try {
+    $tempLogFile = Join-Path $buildDir ("vsim_tb_{0}.log" -f ([Guid]::NewGuid().ToString("N")))
     $runCmd = if ([string]::IsNullOrWhiteSpace($RunTime)) { "run -all" } else { "run $RunTime" }
 
     $vsimArgs = @(
@@ -45,17 +51,64 @@ try {
         "-do", "log -r /*; $runCmd; quit -f"
     )
 
-    & $VsimExe @vsimArgs *> $logFile
+    & $VsimExe @vsimArgs *> $tempLogFile
     if ($LASTEXITCODE -ne 0) {
-        throw "Simulation failed with exit code $LASTEXITCODE. See $logFile"
+        throw "Simulation failed with exit code $LASTEXITCODE. See $tempLogFile"
     }
 
-    $logText = if (Test-Path $logFile) { Get-Content -Path $logFile -Raw } else { "" }
-    if ($logText -match "\*\* Error" -or $logText -match "UVM_ERROR" -or $logText -match "UVM_FATAL") {
-        throw "Simulation reported errors. See $logFile"
+    $logText = if (Test-Path $tempLogFile) { Get-Content -Path $tempLogFile -Raw } else { "" }
+
+    $hasSimError = ($logText -match "\*\* Error")
+    $uvmErrorCount = 0
+    $uvmFatalCount = 0
+
+    $errorCountMatch = [regex]::Match($logText, "(?m)^#\s*UVM_ERROR\s*:\s*(\d+)")
+    if ($errorCountMatch.Success) {
+        $uvmErrorCount = [int]$errorCountMatch.Groups[1].Value
     }
 
-    Write-Host "Simulation completed successfully. Log: $logFile"
+    $fatalCountMatch = [regex]::Match($logText, "(?m)^#\s*UVM_FATAL\s*:\s*(\d+)")
+    if ($fatalCountMatch.Success) {
+        $uvmFatalCount = [int]$fatalCountMatch.Groups[1].Value
+    }
+
+    $hasUvmErrorMessage = ($logText -match "(?m)^#\s*UVM_ERROR\s+(?!:).+$")
+    $hasUvmFatalMessage = ($logText -match "(?m)^#\s*UVM_FATAL\s+(?!:).+$")
+
+    if ($hasSimError -or ($uvmErrorCount -gt 0) -or ($uvmFatalCount -gt 0) -or $hasUvmErrorMessage -or $hasUvmFatalMessage) {
+        throw "Simulation reported errors. See $tempLogFile"
+    }
+
+    if ($RequireUvmCompletion) {
+        $hasUvmDoneSummary =
+            ($logText -match "UVM Report Summary") -or
+            ($logText -match "\*\* Report counts by severity") -or
+            ($logText -match "\[TEST_DONE\]")
+        if (-not $hasUvmDoneSummary) {
+            throw "Simulation ended without UVM completion summary markers. See $tempLogFile"
+        }
+    }
+
+    if ($FailOnAnyUvmWarning -and ($logText -match "UVM_WARNING")) {
+        throw "Simulation reported UVM_WARNING while -FailOnAnyUvmWarning is enabled. See $tempLogFile"
+    }
+
+    foreach ($pattern in $WarningAsErrorPatterns) {
+        if (-not [string]::IsNullOrWhiteSpace($pattern) -and ($logText -match $pattern)) {
+            throw "Simulation matched warning-as-error pattern '$pattern'. See $tempLogFile"
+        }
+    }
+
+    $reportedLog = $tempLogFile
+    try {
+        Copy-Item -Path $tempLogFile -Destination $logFile -Force
+        $reportedLog = $logFile
+    }
+    catch {
+        # Keep using temp log if the default log file is locked by another process.
+    }
+
+    Write-Host "Simulation completed successfully. Log: $reportedLog"
     Write-Host "Wave database updated: $wlfFile"
     Write-Host "Simulation run command: $runCmd"
 }

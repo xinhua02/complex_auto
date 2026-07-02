@@ -9,6 +9,7 @@ class axi_xbar_uvm_configuration extends tue_configuration;
       mst_cfg[i].address_width == TbAxiAddrWidth;
       mst_cfg[i].data_width == TbAxiDataWidth;
       mst_cfg[i].max_burst_length == 16;
+      mst_cfg[i].reset_by_agent == 0;
     }
   }
 
@@ -19,6 +20,9 @@ class axi_xbar_uvm_configuration extends tue_configuration;
       slv_cfg[i].address_width == TbAxiAddrWidth;
       slv_cfg[i].data_width == TbAxiDataWidth;
       slv_cfg[i].max_burst_length == 16;
+      slv_cfg[i].reset_by_agent == 0;
+      slv_cfg[i].response_start_delay.min_delay == 3;
+      slv_cfg[i].response_start_delay.max_delay == 3;
 
       // Keep downstream slaves deterministic; decode errors should come from axi_err_slv only.
       slv_cfg[i].response_weight_okay == 1;

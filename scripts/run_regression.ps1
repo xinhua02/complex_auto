@@ -6,6 +6,12 @@ param(
     [int]$EndSeed = 10,
     [string]$VsimExe = "C:\questasim64_2021.1\win64\vsim.exe",
     [string]$BenderExe = "/c/Users/xinhua02/.cargo/bin/bender.exe",
+    [string]$RunTime = "20us",
+    [bool]$RequireUvmCompletion = $true,
+    [switch]$FailOnAnyUvmWarning,
+    [string[]]$WarningAsErrorPatterns = @(
+        "UVM_WARNING.*master_agent\[[01]\]\.driver\.read_driver.*UNEXPECTED_RESPONSE.*id 0000000[01]"
+    ),
     [switch]$StopOnFailure
 )
 
@@ -53,11 +59,26 @@ foreach ($seed in $Seeds) {
     $message = ""
     try {
         if (-not $compiled) {
-            & $runScript -VsimExe $VsimExe -BenderExe $BenderExe -Seed $seed
+            & $runScript `
+                -VsimExe $VsimExe `
+                -BenderExe $BenderExe `
+                -Seed $seed `
+                -RunTime $RunTime `
+                -RequireUvmCompletion:$RequireUvmCompletion `
+                -WarningAsErrorPatterns $WarningAsErrorPatterns `
+                -FailOnAnyUvmWarning:$FailOnAnyUvmWarning
             $compiled = $true
         }
         else {
-            & $runScript -VsimExe $VsimExe -BenderExe $BenderExe -Seed $seed -SkipCompile
+            & $runScript `
+                -VsimExe $VsimExe `
+                -BenderExe $BenderExe `
+                -Seed $seed `
+                -RunTime $RunTime `
+                -RequireUvmCompletion:$RequireUvmCompletion `
+                -WarningAsErrorPatterns $WarningAsErrorPatterns `
+                -FailOnAnyUvmWarning:$FailOnAnyUvmWarning `
+                -SkipCompile
         }
     }
     catch {
@@ -77,9 +98,9 @@ foreach ($seed in $Seeds) {
 }
 
 $endTime = Get-Date
-$passCount = ($results | Where-Object { $_.Status -eq "PASS" }).Count
-$failCount = ($results | Where-Object { $_.Status -eq "FAIL" }).Count
-$totalCount = $results.Count
+$passCount = @($results | Where-Object { $_.Status -eq "PASS" }).Count
+$failCount = @($results | Where-Object { $_.Status -eq "FAIL" }).Count
+$totalCount = @($results).Count
 
 Write-Host "Regression profile: $RunTier"
 Write-Host "Summary: $passCount/$totalCount PASS"

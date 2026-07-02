@@ -18,13 +18,35 @@ class axi_xbar_uvm_scoreboard extends uvm_component;
   int unsigned same_id_cross_dst_violations[TbNumMasters];
   id_order_state_t order_state[TbNumMasters][tvip_axi_id];
 
-  covergroup cg_xbar with function sample(int src, int dst, bit decerr);
+  covergroup cg_xbar with function sample(
+    int src,
+    int dst,
+    bit decerr,
+    int burst_len,
+    int burst_size,
+    bit is_write
+  );
     option.per_instance = 1;
     cp_src: coverpoint src;
     cp_dst: coverpoint dst;
     cp_decerr: coverpoint decerr;
+    cp_burst_len: coverpoint burst_len {
+      bins single = {1};
+      bins short = {[2:4]};
+      bins mid_len = {[5:8]};
+      bins long = {[9:16]};
+    }
+    cp_burst_size: coverpoint burst_size {
+      bins byte_1 = {1};
+      bins byte_2 = {2};
+      bins byte_4 = {4};
+      bins byte_8 = {8};
+    }
+    cp_is_write: coverpoint is_write;
     x_route: cross cp_src, cp_dst;
     x_src_decerr: cross cp_src, cp_decerr;
+    x_rw_burst: cross cp_is_write, cp_burst_len, cp_burst_size;
+    x_src_burst_size: cross cp_src, cp_burst_size;
   endgroup
 
   function new(string name, uvm_component parent);
@@ -124,7 +146,14 @@ class axi_xbar_uvm_scoreboard extends uvm_component;
       order_state[ingress_idx][item.id] = '{valid: 1'b1, last_dst: dst, last_resp_end: item.response_end_time};
     end
 
-    cg_xbar.sample(ingress_idx, (dst >= 0) ? dst : TbNumSlaves, decerr);
+    cg_xbar.sample(
+      ingress_idx,
+      (dst >= 0) ? dst : TbNumSlaves,
+      decerr,
+      item.burst_length,
+      item.burst_size,
+      item.is_write()
+    );
   endfunction
 
   function void observe_egress(input int egress_idx, input tvip_axi_item item);
@@ -147,11 +176,16 @@ class axi_xbar_uvm_scoreboard extends uvm_component;
     end
 
     route_hits[src][egress_idx]++;
-    cg_xbar.sample(src, egress_idx, 1'b0);
+    cg_xbar.sample(src, egress_idx, 1'b0, item.burst_length, item.burst_size, item.is_write());
   endfunction
 
   function void report_phase(uvm_phase phase);
+    real cg_cov;
+
     super.report_phase(phase);
+
+    cg_cov = cg_xbar.get_coverage();
+    `uvm_info(get_type_name(), $sformatf("cg_xbar coverage = %0.2f%%", cg_cov), UVM_LOW)
 
     foreach (route_hits[i, j]) begin
       `uvm_info(get_type_name(), $sformatf("route_hits[%0d][%0d] = %0d", i, j, route_hits[i][j]), UVM_LOW)

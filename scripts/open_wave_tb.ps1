@@ -40,16 +40,21 @@ if ($ViewPreviousWave) {
 
     Push-Location $buildDir
     try {
-        # Auto-populate the wave window and zoom to captured activity.
-        $viewDo = "view wave; add wave -r /*; wave zoom full"
+        # Use a do file to avoid command-line parsing issues with '-r'.
+        $viewDoFile = Join-Path $buildDir "open_wave_viewer.do"
+        @(
+            "view wave",
+            "add wave -r /*",
+            "wave zoom full"
+        ) | Set-Content -Path $viewDoFile -Encoding ascii
 
         Start-Process -FilePath $VsimExe `
             -WorkingDirectory (Get-Location).Path `
-            -ArgumentList @("-view", $wlfPath, "-do", $viewDo) | Out-Null
+            -ArgumentList @("-view", $wlfPath, "-do", "do $viewDoFile") | Out-Null
 
         Write-Host "Questa GUI launched in viewer mode."
         Write-Host "Wave database: $wlfPath"
-        Write-Host "Wave command: $viewDo"
+        Write-Host "Wave dofile: $viewDoFile"
     }
     finally {
         Pop-Location
